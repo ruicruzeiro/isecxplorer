@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const WS_URL =
-  import.meta.env.VITE_WS_URL ??
-  `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
+const WS_URL = "ws://192.168.1.42:8000/ws";
 
 console.log("host:", window.location.host);
 console.log("protocol:", window.location.protocol);
