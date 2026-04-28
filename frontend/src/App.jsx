@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Compass from "./components/Compass";
 import StatusCard from "./components/StatusCard";
 import PopupArrive from "./components/PopupArrive";
 import { useGeoStream } from "./hooks/useGeoStream";
-import { computeBearing } from "./utils";
+import { useCompassBearing } from "./hooks/useCompassBearing";
 
 function App() {
   const {
@@ -18,26 +18,13 @@ function App() {
     wsRef,
   } = useGeoStream();
 
-  const [arrowRotation, setArrowRotation] = useState(0);
+  const arrowRef = useRef(null);
+  useCompassBearing({ target, lastGeo, deviceHeading, arrowRef });
+
   const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
-    if (!target || !lastGeo) return;
-
-    const bearing = computeBearing(
-      lastGeo.latitude,
-      lastGeo.longitude,
-      target.lat,
-      target.lon,
-    );
-
-    setArrowRotation(bearing - deviceHeading);
-  }, [target, lastGeo, deviceHeading]);
-
-  useEffect(() => {
-    if (lastMessage?.arrived) {
-      setShowPopup(true);
-    }
+    if (lastMessage?.arrived) setShowPopup(true);
   }, [lastMessage]);
 
   return (
@@ -53,9 +40,12 @@ function App() {
         <button onClick={pararStream}>Parar</button>
       </div>
 
-      <Compass target={target} arrowRotation={arrowRotation} />
-
+      <Compass target={target} arrowRef={arrowRef} />
       <StatusCard lastMessage={lastMessage} />
+
+      <p>Device heading: {deviceHeading?.toFixed(1)}°</p>
+      <p>GPS heading: {lastGeo?.heading ?? "-"}</p>
+      <p>Speed: {lastGeo?.speed ?? "-"}</p>
 
       <PopupArrive
         showPopup={showPopup}

@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from "react";
 
 const WS_URL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
+function shortestAngle(from, to) {
+  return ((to - from + 540) % 360) - 180;
+}
+
+function getScreenAngle() {
+  if (screen.orientation?.angle !== undefined) return screen.orientation.angle;
+  return window.orientation ?? 0;
+}
+
 export function useGeoStream() {
   const [msg, setMsg] = useState("A ligar WebSocket...");
   const [wsConnected, setWsConnected] = useState(false);
@@ -16,6 +25,8 @@ export function useGeoStream() {
   const latestImuRef = useRef(null);
   const latestGeoRef = useRef(null);
   const sendTimerRef = useRef(null);
+  const smoothedHeadingRef = useRef(null);
+  const SMOOTHING = 0.3;
 
   const pedirPermissaoIMU = async () => {
     if (
@@ -48,7 +59,6 @@ export function useGeoStream() {
     ws.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
-
         if (parsed.target_coords) {
           setTarget({
             name: parsed.target,
@@ -57,7 +67,6 @@ export function useGeoStream() {
             distance_m: parsed.target_distance,
           });
         }
-
         setLastMessage(parsed);
       } catch (err) {
         console.error("Erro a ler mensagem WS:", err);
@@ -79,10 +88,9 @@ export function useGeoStream() {
 
   const iniciarIMU = async () => {
     const permitida = await pedirPermissaoIMU();
-    if (!permitida) {
-      throw new Error("Permissão de IMU negada.");
-    }
+    if (!permitida) throw new Error("Permissão de IMU negada.");
 
+    // ← motionHandler restaurado
     const motionHandler = (event) => {
       latestImuRef.current = {
         acceleration: event.acceleration
@@ -110,26 +118,46 @@ export function useGeoStream() {
       };
     };
 
-    const orientationHandler = (event) => {
-      let heading = null;
-
-      if (event.webkitCompassHeading !== undefined) {
-        heading = event.webkitCompassHeading;
-      } else if (event.alpha !== null) {
-        heading = 360 - event.alpha;
+    const applyHeading = (rawHeading) => {
+      // smoothing circular — evita tremido e saltos em 0/360
+      if (smoothedHeadingRef.current === null) {
+        smoothedHeadingRef.current = rawHeading;
+      } else {
+        const delta = shortestAngle(smoothedHeadingRef.current, rawHeading);
+        smoothedHeadingRef.current =
+          (smoothedHeadingRef.current + SMOOTHING * delta + 360) % 360;
       }
-
-      if (heading !== null) {
-        setDeviceHeading(heading);
-      }
+      setDeviceHeading(smoothedHeadingRef.current);
     };
 
+    const orientationHandler = (event) => {
+      if (event.webkitCompassHeading !== undefined) {
+        // iOS — fiável, referencial Norte magnético direto
+        applyHeading(event.webkitCompassHeading);
+      } else if (event.absolute && event.alpha !== null) {
+        // Android com absolute — compensar orientação do ecrã
+        const screenAngle = getScreenAngle();
+        applyHeading((360 - event.alpha + screenAngle) % 360);
+      }
+      // se não for absolute e não tiver webkitCompassHeading, ignorar
+    };
+
+    // absoluteHandler marca o evento como absolute=true antes de o passar
+    const absoluteHandler = (event) =>
+      orientationHandler(Object.assign({}, event, { absolute: true }));
+
+    window.addEventListener("deviceorientationabsolute", absoluteHandler, true);
     window.addEventListener("deviceorientation", orientationHandler, true);
     window.addEventListener("devicemotion", motionHandler);
 
     imuCleanupRef.current = () => {
-      window.removeEventListener("devicemotion", motionHandler);
+      window.removeEventListener(
+        "deviceorientationabsolute",
+        absoluteHandler,
+        true,
+      );
       window.removeEventListener("deviceorientation", orientationHandler, true);
+      window.removeEventListener("devicemotion", motionHandler);
     };
   };
 
@@ -138,7 +166,6 @@ export function useGeoStream() {
       setMsg("Geolocalização não suportada.");
       return;
     }
-
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       setMsg("WebSocket ainda não está ligado.");
       return;
@@ -157,33 +184,24 @@ export function useGeoStream() {
             speed: pos.coords.speed,
             heading: pos.coords.heading,
           };
-
           latestGeoRef.current = geo;
           setLastGeo(geo);
         },
-        (err) => {
-          setMsg(`Erro de geolocalização: ${err.message}`);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 10000,
-        },
+        (err) => setMsg(`Erro de geolocalização: ${err.message}`),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
       );
 
       sendTimerRef.current = setInterval(() => {
         if (!latestGeoRef.current) return;
-
         const payload = {
           timestamp: Date.now(),
           geolocation: latestGeoRef.current,
           imu: latestImuRef.current,
         };
-
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify(payload));
         }
-      }, 1000);
+      }, 500);
 
       setMsg("Stream ativo");
     } catch (e) {
@@ -196,28 +214,22 @@ export function useGeoStream() {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
-
     if (imuCleanupRef.current) {
       imuCleanupRef.current();
       imuCleanupRef.current = null;
     }
-
     if (sendTimerRef.current !== null) {
       clearInterval(sendTimerRef.current);
       sendTimerRef.current = null;
     }
-
     setMsg(wsConnected ? "Stream parado" : "WebSocket desligado");
   };
 
   useEffect(() => {
     connectToWebSocket();
-
     return () => {
       pararStream();
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      wsRef.current?.close();
     };
   }, []);
 

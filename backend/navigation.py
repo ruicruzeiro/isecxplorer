@@ -1,5 +1,6 @@
 from db import get_connection
 
+
 def check_target_poi(lat, lon, poi_name):
     conn = get_connection()
     cur = conn.cursor()
@@ -13,7 +14,15 @@ def check_target_poi(lat, lon, poi_name):
     )
     SELECT
         p.name,
-        ST_Covers(p.geom, ponto.geom) AS inside,
+        (
+            ST_Covers(p.geom, ponto.geom)
+            OR
+            ST_DWithin(
+                ST_Transform(p.geom, 4326)::geography,
+                ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+                4
+            )
+        ) AS inside,
         ST_Distance(
             ST_Transform(p.geom, 4326)::geography,
             ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
@@ -26,7 +35,13 @@ def check_target_poi(lat, lon, poi_name):
     quente = f"{poi_name}_quente"
     val = f"{poi_name}_val"
 
-    cur.execute(query, (lon, lat, lon, lat, frio, quente, val))
+    cur.execute(query, (
+        lon, lat,   # ponto para ST_Covers
+        lon, lat,   # ponto para ST_DWithin
+        lon, lat,   # ponto para ST_Distance
+        frio, quente, val
+    ))
+
     rows = cur.fetchall()
 
     cur.close()
@@ -67,6 +82,7 @@ def check_target_poi(lat, lon, poi_name):
         result["distance_m"] = min(r[2] for r in rows)
 
     return result
+
 
 def get_poi_target(poi_name, lat, lon):
     conn = get_connection()

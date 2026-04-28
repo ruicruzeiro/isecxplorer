@@ -1,5 +1,6 @@
 import json
 import random
+from dataclasses import dataclass
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -16,16 +17,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@dataclass
+class SessionState:
+    current_poi_index: int = 0
+    last_zone: str = "fora"
+    current_default_msg: str | None = None
+    waiting_confirmation: bool = False
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    print("Pedido de WS recebido")
     await websocket.accept()
-    print("WS aceite")
 
-    current_poi_index = 0
-    last_zone = "fora"
-    current_default_msg = None
-    waiting_confirmation = False
+    state = SessionState()
 
     try:
         while True:
@@ -33,55 +36,56 @@ async def websocket_endpoint(websocket: WebSocket):
             data = json.loads(data_text)
 
             if data.get("type") == "confirm":
-                current_poi_index += 1
-                last_zone = "fora"
-                waiting_confirmation = False
-                current_default_msg = None
+                state.current_poi_index += 1
+                state.last_zone = "fora"
+                state.waiting_confirmation = False
+                state.current_default_msg = None
                 continue
 
-            lat = data["geolocation"]["latitude"]
-            lon = data["geolocation"]["longitude"]
-
-            if current_poi_index >= len(ROUTE):
+            if state.current_poi_index >= len(ROUTE):
                 await websocket.send_json({
                     "type": "route_finished",
                     "payload": data,
                     "message": "Percurso terminado.",
                     "target": None,
-                    "next_poi": None
+                    "next_poi": None,
                 })
                 continue
 
-            current_poi = ROUTE[current_poi_index]
+            current_poi = ROUTE[state.current_poi_index]
             next_poi_name = POI_DICT.get(current_poi, current_poi)
+
+            lat = data["geolocation"]["latitude"]
+            lon = data["geolocation"]["longitude"]
+
             status = check_target_poi(lat, lon, current_poi)
             target = get_poi_target(current_poi, lat, lon)
 
             zone = status["zone"]
             message = None
 
-            if zone == "val" and not waiting_confirmation:
+            if zone == "val" and not state.waiting_confirmation:
                 message = f"Chegaste a {current_poi}!"
-                waiting_confirmation = True
-                last_zone = zone
+                state.waiting_confirmation = True
+                state.last_zone = zone
 
-            elif zone != last_zone:
-                current_default_msg = None
+            elif zone != state.last_zone:
+                state.current_default_msg = None
                 if zone == "frio":
                     message = "Frio..."
                 elif zone == "quente":
                     message = "Quente!"
-                last_zone = zone
+                state.last_zone = zone
 
-            if waiting_confirmation:
+            if state.waiting_confirmation:
                 message = f"Chegaste a {current_poi}!"
             elif message is None:
-                if current_default_msg is None:
-                    current_default_msg = random.choice(DEFAULT_MESSAGES)
-                message = current_default_msg
+                if state.current_default_msg is None:
+                    state.current_default_msg = random.choice(DEFAULT_MESSAGES)
+                message = state.current_default_msg
 
             await websocket.send_json({
-                "arrived": waiting_confirmation,
+                "arrived": state.waiting_confirmation,
                 "current_poi": current_poi,
                 "target": target["name"] if target else None,
                 "target_distance": target["distance_m"] if target else None,
@@ -93,7 +97,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 "message": message,
                 "next_poi":  f"Próximo ponto: {next_poi_name}"
             })
-
 
     except WebSocketDisconnect:
         print("Cliente desligou o WebSocket")

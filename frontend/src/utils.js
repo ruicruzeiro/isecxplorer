@@ -12,3 +12,8 @@ export function computeBearing(lat1, lon1, lat2, lon2) {
 
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
+
+export function shortestAngle(from, to) {
+  let diff = ((to - from + 540) % 360) - 180;
+  return diff;
+}
