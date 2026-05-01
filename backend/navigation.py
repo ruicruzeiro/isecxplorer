@@ -49,7 +49,7 @@ def check_target_poi(lat, lon, poi_name):
 
     result = {
         "poi": poi_name,
-        "zone": "fora",
+        "zone": "",
         "distance_m": None,
         "polygons": []
     }
@@ -115,4 +115,42 @@ def get_poi_target(poi_name, lat, lon):
         "lon": row[1],
         "name": f"{poi_name}_val",
         "distance_m": row[2],
+    }
+
+def get_quiz_for_poi(poi_name):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = """
+    SELECT
+        pergunta,
+        opcao_a,
+        opcao_b,
+        opcao_c,
+        opcao_d,
+        opcao_certa
+    FROM quiz
+    WHERE poi = %s
+    ORDER BY random()
+    LIMIT 1;
+    """
+
+    cur.execute(query, (poi_name,))
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+        return None
+
+    return {
+        "pergunta": row[0],
+        "opcoes": {
+            "A": row[1],
+            "B": row[2],
+            "C": row[3],
+            "D": row[4],
+        },
+        "opcao_certa": row[5],
     }

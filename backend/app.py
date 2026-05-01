@@ -1,11 +1,13 @@
 import json
+import time
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from constants import ROUTE, DEFAULT_MESSAGES, POI_DICT
-from navigation import check_target_poi, get_poi_target
+from navigation import check_target_poi, get_poi_target, get_quiz_for_poi
+from scoring import calculate_time_bonus, calculate_quiz_points
 
 app = FastAPI()
 
@@ -20,9 +22,14 @@ app.add_middleware(
 @dataclass
 class SessionState:
     current_poi_index: int = 0
-    last_zone: str = "fora"
+    last_zone: str = ""
     current_default_msg: str | None = None
     waiting_confirmation: bool = False
+    score: int = 0
+    poi_started_at: float = field(default_factory=time.time)
+    current_quiz: dict | None = None
+    current_quiz_answer: str | None = None
+    quiz_answered: bool = False
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -36,10 +43,14 @@ async def websocket_endpoint(websocket: WebSocket):
             data = json.loads(data_text)
 
             if data.get("type") == "confirm":
-                state.current_poi_index += 1
-                state.last_zone = "fora"
+                if state.waiting_confirmation:
+                    state.current_poi_index += 1
+                state.last_zone = ""
                 state.waiting_confirmation = False
                 state.current_default_msg = None
+                state.poi_started_at = time.time()
+                state.current_quiz = None
+                state.quiz_answered = False
                 continue
 
             if state.current_poi_index >= len(ROUTE):
@@ -49,6 +60,26 @@ async def websocket_endpoint(websocket: WebSocket):
                     "message": "Percurso terminado.",
                     "target": None,
                     "next_poi": None,
+                })
+                continue
+
+            if data.get("type") == "quiz_answer":
+                if state.quiz_answered:
+                    continue
+                answer = data.get("answer")
+                quiz = state.current_quiz
+                correct = quiz is not None and answer == quiz["opcao_certa"]
+                points = calculate_quiz_points(correct)
+                state.score += points
+                state.quiz_answered = True
+                await websocket.send_json({
+                    "type": "quiz_result",
+                    "correct": correct,
+                    "answer": answer,
+                    "correct_answer": quiz["opcao_certa"] if quiz else None,
+                    "points": points,
+                    "score": state.score,
+                    "message": "Resposta certa!" if correct else "Resposta errada."
                 })
                 continue
 
@@ -64,8 +95,30 @@ async def websocket_endpoint(websocket: WebSocket):
             zone = status["zone"]
             message = None
 
+            if state.waiting_confirmation:
+                await websocket.send_json({
+                    "arrived": True,
+                    "current_poi": current_poi,
+                    "target": target["name"] if target else None,
+                    "target_distance": target["distance_m"] if target else None,
+                    "target_coords": {
+                        "lat": target["lat"],
+                        "lon": target["lon"]
+                    } if target else None,
+                    "zone": "val",
+                    "message": f"Chegaste a {current_poi}!",
+                    "next_poi": f"Próximo ponto: {next_poi_name}",
+                    "quiz": state.current_quiz,
+                    "score": state.score,
+                })
+                continue
+
             if zone == "val" and not state.waiting_confirmation:
-                message = f"Chegaste a {current_poi}!"
+                seconds_elapsed = time.time() - state.poi_started_at
+                time_bonus = calculate_time_bonus(seconds_elapsed)
+                state.score += time_bonus
+                state.current_quiz = get_quiz_for_poi(current_poi)
+                message = f"Chegaste a {current_poi}! Bónus de tempo: +{time_bonus}"
                 state.waiting_confirmation = True
                 state.last_zone = zone
 
@@ -95,7 +148,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 } if target else None,
                 "zone": zone,
                 "message": message,
-                "next_poi":  f"Próximo ponto: {next_poi_name}"
+                "next_poi":  f"Próximo ponto: {next_poi_name}",
+                "quiz": state.current_quiz if state.waiting_confirmation else None,
+                "score": state.score,
             })
 
     except WebSocketDisconnect:

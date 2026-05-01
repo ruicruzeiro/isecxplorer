@@ -1,35 +1,30 @@
 export function Compass({ target, arrowRef }) {
-  if (!target) return <p>Sem destino ativo.</p>;
+  if (!target) {
+    return (
+      <div className="big-compass empty">
+        <p>Sem destino ativo</p>
+      </div>
+    );
+  }
+
   const isClose = target.distance_m < 10;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 20,
-        minHeight: 180,
-      }}
-    >
-      <div
-        ref={arrowRef}
-        style={{
-          fontSize: 100,
-          lineHeight: 1,
-          height: 100,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          filter: isClose ? "drop-shadow(0 0 12px gold)" : "none",
-        }}
-      >
-        ↑
+    <div className={`big-compass ${isClose ? "close" : ""}`}>
+      <div className="big-compass-face">
+        <span className="big-compass-mark n">◆</span>
+        <span className="big-compass-mark s">◆</span>
+        <span className="big-compass-mark e">◆</span>
+        <span className="big-compass-mark w">◆</span>
+
+        <div ref={arrowRef} className="big-needle-wrap">
+          <div className="big-needle">
+            <div className="big-needle-north"></div>
+            <div className="big-needle-south"></div>
+          </div>
+          <div className="big-needle-center"></div>
+        </div>
       </div>
-      <p>Destino: {target.name}</p>
-      <p>Distância: {target.distance_m?.toFixed(1)} m</p>
-      {isClose && <p style={{ color: "green" }}>✓ Chegaste!</p>}
     </div>
   );
 }

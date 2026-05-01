@@ -1,11 +1,22 @@
 import { useEffect, useRef, useState } from "react";
+import "./styles.css";
+
+import Onboarding from "./components/Onboarding";
 import Compass from "./components/Compass";
 import StatusCard from "./components/StatusCard";
-import PopupArrive from "./components/PopupArrive";
+import ArrivedScreen from "./components/ArrivedScreen";
+import QuizScreen from "./components/QuizScreen";
 import { useGeoStream } from "./hooks/useGeoStream";
 import { useCompassBearing } from "./hooks/useCompassBearing";
 
 function App() {
+  const [alias, setAlias] = useState("");
+  const [started, setStarted] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [debugArrived, setDebugArrived] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [currentQuiz, setCurrentQuiz] = useState(null);
+
   const {
     msg,
     wsConnected,
@@ -14,44 +25,108 @@ function App() {
     lastMessage,
     deviceHeading,
     iniciarStream,
-    pararStream,
     wsRef,
   } = useGeoStream();
+
+  const handleStart = () => {
+    setStarted(true);
+  };
+
+  const handleContinueAfterQuiz = () => {
+    setShowQuiz(false);
+    setShowPopup(false);
+    setDebugArrived(false);
+    setCurrentQuiz(null);
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({ type: "confirm" }));
+    }
+  };
+
+  const debugQuiz = {
+    pergunta: "Qual é o nome deste ponto de interesse?",
+    opcao_certa: "A",
+    opcoes: {
+      A: "Resposta A",
+      B: "Resposta B",
+      C: "Resposta C",
+      D: "Resposta D",
+    },
+  };
+
+  useEffect(() => {
+    if (started && wsConnected) {
+      iniciarStream();
+    }
+  }, [started, wsConnected]);
 
   const arrowRef = useRef(null);
   useCompassBearing({ target, lastGeo, deviceHeading, arrowRef });
 
-  const [showPopup, setShowPopup] = useState(false);
-
   useEffect(() => {
-    if (lastMessage?.arrived) setShowPopup(true);
+    if (lastMessage?.arrived) {
+      setShowPopup(true);
+      if (lastMessage.quiz) {
+        setCurrentQuiz(lastMessage.quiz);
+      }
+    }
   }, [lastMessage]);
 
-  return (
-    <div style={{ padding: 20, fontFamily: "Arial, sans-serif" }}>
-      <h1>ISECxplorer</h1>
-      <p>{msg}</p>
-      <p>Estado WS: {wsConnected ? "Ligado" : "Desligado"}</p>
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <button onClick={iniciarStream} disabled={!wsConnected}>
-          Iniciar
-        </button>
-        <button onClick={pararStream}>Parar</button>
+  if (!started) {
+    return (
+      <div className="app">
+        <Onboarding alias={alias} setAlias={setAlias} onStart={handleStart} />
       </div>
+    );
+  }
 
-      <Compass target={target} arrowRef={arrowRef} />
-      <StatusCard lastMessage={lastMessage} />
+  return (
+    <div className="app">
+      <div className="screen nav-screen" id="screen-map">
+        <div className="hud-bar">
+          <div className="gps-chip">
+            <div className={`gps-dot ${wsConnected ? "" : "weak"}`}></div>
+            <span>{wsConnected ? "ONLINE" : "OFFLINE"}</span>
+          </div>
+        </div>
+        <main className="nav-main">
+          <StatusCard lastMessage={lastMessage} />
+          <Compass target={target} arrowRef={arrowRef} />
+          <div className="distance-card">
+            <div className="dist-val">
+              {target?.distance_m ? Math.round(target.distance_m) : "—"}
+            </div>
+            <div className="dist-unit">metros</div>
+          </div>
 
-      <p>Device heading: {deviceHeading?.toFixed(1)}°</p>
-      <p>GPS heading: {lastGeo?.heading ?? "-"}</p>
-      <p>Speed: {lastGeo?.speed ?? "-"}</p>
-
-      <PopupArrive
-        showPopup={showPopup}
-        setShowPopup={setShowPopup}
-        wsRef={wsRef}
-      />
+          <div className="debug-panel">
+            <button onClick={() => setDebugArrived(true)}>
+              Testar chegada
+            </button>
+            <button
+              onClick={() => {
+                if (wsRef.current) {
+                  wsRef.current.send(JSON.stringify({ type: "confirm" }));
+                }
+              }}
+            >
+              Próximo POI
+            </button>
+          </div>
+        </main>
+        <ArrivedScreen
+          showPopup={(showPopup || debugArrived) && !showQuiz}
+          currentPoi={lastMessage?.current_poi}
+          onStartQuiz={() => setShowQuiz(true)}
+        />
+        {showQuiz && (
+          <QuizScreen
+            quiz={currentQuiz ?? debugQuiz}
+            currentPoi={lastMessage?.current_poi}
+            onContinue={handleContinueAfterQuiz}
+            wsRef={wsRef}
+          />
+        )}
+      </div>
     </div>
   );
 }
