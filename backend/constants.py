@@ -29,7 +29,7 @@ DEFAULT_MESSAGES = [
     "Estás a andar devagar de propósito? Anda lá",
     "É por aqui. Juro, Joca",
     "Se te perderes, a culpa não é minha",
-    "Bonito desvio. Agora volta para",
+    "Bonito desvio. Agora segue mas é a bússola",
     "Não inventes. É por aqui",
     "A seta não é para decoração. É para seguir",
     "Estás quase... a estar quase",

@@ -1,13 +1,7 @@
 function StatusCard({ lastMessage }) {
   return (
-    <section className="status-card">
-      <div className="clue-eyebrow">
-        {lastMessage?.message ?? "A aguardar sinal..."}
-      </div>
-
-      <div className="status-message">
-        <span>{lastMessage?.zone ?? ""}</span>
-      </div>
+    <section className="status-message-only">
+      {lastMessage?.message ?? "A aguardar sinal..."}
     </section>
   );
 }

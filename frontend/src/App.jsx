@@ -16,6 +16,7 @@ function App() {
   const [debugArrived, setDebugArrived] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState(null);
+  const [atStart, setAtStart] = useState(false);
 
   const {
     msg,
@@ -63,6 +64,9 @@ function App() {
   useCompassBearing({ target, lastGeo, deviceHeading, arrowRef });
 
   useEffect(() => {
+    if (lastMessage?.type === "start_waiting") {
+      setAtStart(Boolean(lastMessage.at_start));
+    }
     if (lastMessage?.arrived) {
       setShowPopup(true);
       if (lastMessage.quiz) {
@@ -90,14 +94,30 @@ function App() {
         </div>
         <main className="nav-main">
           <StatusCard lastMessage={lastMessage} />
-          <Compass target={target} arrowRef={arrowRef} />
+          <Compass
+            target={target}
+            arrowRef={arrowRef}
+            zone={lastMessage?.zone}
+          />
+          <div className={`zone-indicator zone-${lastMessage?.zone ?? "fora"}`}>
+            {lastMessage?.zone ?? "fora"}
+          </div>{" "}
           <div className="distance-card">
             <div className="dist-val">
               {target?.distance_m ? Math.round(target.distance_m) : "—"}
             </div>
             <div className="dist-unit">metros</div>
           </div>
-
+          {lastMessage?.type === "start_waiting" && atStart && (
+            <button
+              className="cta-btn start-exploration-btn"
+              onClick={() => {
+                wsRef.current?.send(JSON.stringify({ type: "confirm_start" }));
+              }}
+            >
+              Começar exploração!
+            </button>
+          )}
           <div className="debug-panel">
             <button onClick={() => setDebugArrived(true)}>
               Testar chegada
@@ -113,11 +133,13 @@ function App() {
             </button>
           </div>
         </main>
+
         <ArrivedScreen
           showPopup={(showPopup || debugArrived) && !showQuiz}
           currentPoi={lastMessage?.current_poi}
           onStartQuiz={() => setShowQuiz(true)}
         />
+
         {showQuiz && (
           <QuizScreen
             quiz={currentQuiz ?? debugQuiz}

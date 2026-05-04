@@ -1,4 +1,4 @@
-export function Compass({ target, arrowRef }) {
+export function Compass({ target, arrowRef, zone }) {
   if (!target) {
     return (
       <div className="big-compass empty">
@@ -7,10 +7,8 @@ export function Compass({ target, arrowRef }) {
     );
   }
 
-  const isClose = target.distance_m < 10;
-
   return (
-    <div className={`big-compass ${isClose ? "close" : ""}`}>
+    <div className={`big-compass zone-${zone ?? "fora"}`}>
       <div className="big-compass-face">
         <span className="big-compass-mark n">◆</span>
         <span className="big-compass-mark s">◆</span>

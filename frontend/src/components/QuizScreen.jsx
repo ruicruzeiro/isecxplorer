@@ -7,6 +7,7 @@ function QuizScreen({ quiz, currentPoi, onContinue, wsRef }) {
 
   const isAnswered = selected !== null;
   const isCorrect = selected === quiz.opcao_certa;
+  const shuffled = Object.entries(quiz.opcoes).sort(() => Math.random() - 0.5);
 
   return (
     <div className="arrived-screen">
@@ -23,16 +24,16 @@ function QuizScreen({ quiz, currentPoi, onContinue, wsRef }) {
             className="quiz-answer-btn"
             disabled={isAnswered}
             onClick={() => {
-              setSelected(key);
+              setSelected(value);
               wsRef.current?.send(
                 JSON.stringify({
                   type: "quiz_answer",
-                  answer: key,
+                  answer: value,
                 }),
               );
             }}
           >
-            <strong>{key}.</strong> {value}
+            {value}
           </button>
         ))}
 

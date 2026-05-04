@@ -484,13 +484,27 @@ body::before {
   letter-spacing: 0.08em;
   padding-top: 2px;
 }
+#btn-start:disabled::after {
+  color: rgba(187, 242, 205, 0.38);
+}
+.cta-btn:not(:disabled) {
+  background: var(--acid);
+  color: var(--void);
+  box-shadow:
+    0 4px 24px rgba(196, 241, 53, 0.45),
+    0 0 0 1px rgba(196, 241, 53, 0.35);
+}
 .cta-btn:active {
   transform: scale(0.97);
 }
 .cta-btn:disabled {
-  opacity: 0.35;
+  background: #31451f;
+  color: rgba(232, 244, 236, 0.38);
+  opacity: 1;
   cursor: not-allowed;
   box-shadow: none;
+  border: 1px solid rgba(196, 241, 53, 0.08);
+  filter: saturate(0.7);
 }
 .cta-btn:not(:disabled) {
   box-shadow:
@@ -2555,4 +2569,66 @@ body,
   color: var(--ember);
   font-weight: 800;
   margin: 12px 0;
+}
+
+.status-message-only {
+  width: min(100%, 420px);
+  text-align: center;
+  font-family: var(--f-ui);
+  font-size: clamp(22px, 7vw, 34px);
+  line-height: 1.05;
+  font-weight: 800;
+  color: var(--fog);
+  text-shadow: 0 0 20px rgba(0, 0, 0, 0.45);
+}
+
+.zone-indicator {
+  height: 28px;
+  margin-top: -8px;
+  font-family: var(--f-data);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
+.zone-frio {
+  color: var(--amber);
+}
+
+.zone-quente {
+  color: var(--ember);
+}
+
+.zone-val {
+  color: var(--acid);
+}
+
+.big-compass.zone-frio .big-compass-face {
+  border-color: var(--amber);
+  box-shadow:
+    0 0 45px rgba(240, 168, 50, 0.24),
+    inset 0 0 28px rgba(240, 168, 50, 0.08);
+}
+
+.big-compass.zone-frio .big-needle-north {
+  background: linear-gradient(to top, var(--amber), rgba(240, 168, 50, 0.35));
+  filter: drop-shadow(0 0 12px rgba(240, 168, 50, 0.9));
+}
+
+.big-compass.zone-quente .big-compass-face {
+  border-color: var(--ember);
+  box-shadow:
+    0 0 45px rgba(232, 92, 42, 0.28),
+    inset 0 0 28px rgba(232, 92, 42, 0.1);
+}
+
+.big-compass.zone-quente .big-needle-north {
+  background: linear-gradient(to top, var(--ember), rgba(232, 92, 42, 0.35));
+  filter: drop-shadow(0 0 12px rgba(232, 92, 42, 0.9));
+}
+
+.start-exploration-btn {
+  max-width: 320px;
+  margin-top: 8px;
 }

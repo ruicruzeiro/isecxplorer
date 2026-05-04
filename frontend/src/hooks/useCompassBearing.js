@@ -37,7 +37,7 @@ export function useCompassBearing({
         } else {
           const raw = ((targetAngleRef.current % 360) + 360) % 360;
           const delta = shortestAngle(displayAngleRef.current % 360, raw);
-          displayAngleRef.current = displayAngleRef.current + 0.1 * delta;
+          displayAngleRef.current = displayAngleRef.current + 0.25 * delta;
         }
         arrowRef.current.style.transform = `rotate(${displayAngleRef.current}deg)`;
       }

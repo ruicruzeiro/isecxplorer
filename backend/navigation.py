@@ -1,6 +1,53 @@
 from db import get_connection
 
 
+def check_start(lat, lon):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = """
+    WITH ponto AS (
+        SELECT ST_Transform(
+            ST_SetSRID(ST_MakePoint(%s, %s), 4326),
+            3857
+        ) AS geom
+    )
+    SELECT
+        ST_Covers(s.geom, ponto.geom) AS inside,
+        ST_Distance(
+            ST_Transform(s.geom, 4326)::geography,
+            ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+        ) AS distance_m,
+        ST_Y(ST_Transform(ST_Centroid(s.geom), 4326)) AS lat,
+        ST_X(ST_Transform(ST_Centroid(s.geom), 4326)) AS lon
+    FROM isec_poligonos s, ponto
+    WHERE s.name = 'start'
+    LIMIT 1;
+    """
+
+    cur.execute(query, (lon, lat, lon, lat))
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+        return {
+            "inside": False,
+            "distance_m": None,
+            "target_coords": None,
+        }
+
+    return {
+        "inside": row[0],
+        "distance_m": row[1],
+        "target_coords": {
+            "lat": row[2],
+            "lon": row[3],
+        },
+    }
+
+
 def check_target_poi(lat, lon, poi_name):
     conn = get_connection()
     cur = conn.cursor()
@@ -145,12 +192,12 @@ def get_quiz_for_poi(poi_name):
         return None
 
     return {
-        "pergunta": row[0],
+        "pergunta": row["pergunta"],
         "opcoes": {
-            "A": row[1],
-            "B": row[2],
-            "C": row[3],
-            "D": row[4],
+            "A": row["opcao_a"],
+            "B": row["opcao_b"],
+            "C": row["opcao_c"],
+            "D": row["opcao_d"],
         },
-        "opcao_certa": row[5],
+        "resposta_certa": row["resposta_certa"]
     }
