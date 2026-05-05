@@ -1,3 +1,4 @@
+import os
 import json
 import time
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from constants import ROUTE, POI_DICT
 from navigation import check_target_poi, get_poi_target, get_quiz_for_poi, check_start
 from scoring import calculate_time_bonus, calculate_quiz_points
+from scoring_db import get_leaderboard_scores, save_scores
 from messages import get_default_message, get_zone_message
 
 
@@ -36,6 +38,7 @@ class SessionState:
     quiz_answered: bool = False
     waiting_start: bool = True
     start_confirmed: bool = False
+    session_started_at: float = field(default_factory=time.time)
 
 
 @app.websocket("/ws")
@@ -53,6 +56,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 state.waiting_start = False
                 state.start_confirmed = True
                 state.poi_started_at = time.time()
+                state.session_started_at = time.time()
                 state.current_default_msg = None
                 state.last_zone = ""
                 continue
@@ -69,6 +73,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             if state.waiting_start:
+                if "geolocation" not in data:
+                    continue
                 lat = data["geolocation"]["latitude"]
                 lon = data["geolocation"]["longitude"]
                 start_status = check_start(lat, lon)
@@ -87,14 +93,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             if state.current_poi_index >= len(ROUTE):
+                duration_s = int(time.time() - state.session_started_at)
                 await websocket.send_json({
                     "type": "route_finished",
-                    "payload": data,
                     "message": "Percurso terminado.",
-                    "zone_message": None,
-                    "target": None,
-                    "next_poi": None,
                     "score": state.score,
+                    "pois_count": state.current_poi_index,
+                    "duration_s": duration_s,
                 })
                 continue
 
@@ -121,6 +126,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
             current_poi = ROUTE[state.current_poi_index]
             next_poi_name = POI_DICT.get(current_poi, current_poi)
+
+            if "geolocation" not in data:
+                continue
 
             lat = data["geolocation"]["latitude"]
             lon = data["geolocation"]["longitude"]
@@ -188,6 +196,33 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         print("Cliente desligou o WebSocket")
+
+
+@app.get("/api/v1/constants")
+async def get_constants():
+    return {"poi_dict": POI_DICT, "route": ROUTE}
+
+
+@app.post("/api/v1/session/finish")
+async def finish_session(data: dict):
+    return save_scores(data)
+
+
+@app.get("/api/v1/leaderboard")
+async def get_leaderboard(limit: int = 50):
+    return get_leaderboard_scores(limit=limit)
+
+
+@app.get("/api/v1/debug/quiz")
+async def debug_random_quiz(poi: str = None):
+    from navigation import get_quiz_for_poi
+    from constants import ROUTE
+    import random
+    target_poi = poi if poi in ROUTE else random.choice(ROUTE)
+    quiz = get_quiz_for_poi(target_poi)
+    if not quiz:
+        return {"error": "Sem perguntas na BD"}
+    return quiz
 
 
 app.mount("/", StaticFiles(directory="dist", html=True), name="static")

@@ -9,7 +9,7 @@ opcao_d VARCHAR(250) NOT NULL,
 resposta_certa VARCHAR(250) NOT NULL
 );
 
-INSERT INTO quiz (poi, pergunta, opcao_a, opcao_b, opcao_c, opcao_d, opcao_certa)
+INSERT INTO quiz (poi, pergunta, opcao_a, opcao_b, opcao_c, opcao_d, resposta_certa)
 VALUES
 ('gerais', 'Qual dos seguintes serviços NÃO está neste edifício?', 'Secção de Textos', 'Armazém', 'Cantina', 'Laboratório de Física', 'Cantina'),
 ('polivalente', 'Que dispositivo médico está disponível no átrio?', 'Kit de Primeiros Socorros', 'Assador de Chouriças', 'Medidor de Tensão', 'Desfibrilhador', 'Desfibrilhador'),

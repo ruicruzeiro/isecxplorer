@@ -6,7 +6,7 @@ function QuizScreen({ quiz, currentPoi, onContinue, wsRef }) {
   if (!quiz) return null;
 
   const isAnswered = selected !== null;
-  const isCorrect = selected === quiz.opcao_certa;
+  const isCorrect = selected === quiz.resposta_certa;
   const shuffled = Object.entries(quiz.opcoes).sort(() => Math.random() - 0.5);
 
   return (
@@ -42,7 +42,7 @@ function QuizScreen({ quiz, currentPoi, onContinue, wsRef }) {
             <p className={isCorrect ? "quiz-result-ok" : "quiz-result-bad"}>
               {isCorrect
                 ? "Resposta certa!"
-                : `Resposta errada. Era ${quiz.opcao_certa}.`}
+                : `Resposta errada. Era ${quiz.resposta_certa}.`}
             </p>
 
             <button className="cta-btn arrived-btn" onClick={onContinue}>

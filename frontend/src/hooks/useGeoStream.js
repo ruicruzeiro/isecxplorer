@@ -26,7 +26,7 @@ export function useGeoStream() {
   const latestGeoRef = useRef(null);
   const sendTimerRef = useRef(null);
   const smoothedHeadingRef = useRef(null);
-  const SMOOTHING = 0.3;
+  const SMOOTHING = 0.7;
 
   const pedirPermissaoIMU = async () => {
     if (
@@ -188,7 +188,7 @@ export function useGeoStream() {
           setLastGeo(geo);
         },
         (err) => setMsg(`Erro de geolocalização: ${err.message}`),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 },
       );
 
       sendTimerRef.current = setInterval(() => {

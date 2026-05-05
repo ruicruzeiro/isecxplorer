@@ -3,11 +3,12 @@ import "./styles.css";
 
 import Onboarding from "./components/Onboarding";
 import Compass from "./components/Compass";
-import StatusCard from "./components/StatusCard";
 import ArrivedScreen from "./components/ArrivedScreen";
 import QuizScreen from "./components/QuizScreen";
+import GameComplete from "./components/GameComplete";
 import { useGeoStream } from "./hooks/useGeoStream";
 import { useCompassBearing } from "./hooks/useCompassBearing";
+import { DebugPanel } from "./components/DebugPanel";
 
 function App() {
   const [alias, setAlias] = useState("");
@@ -17,6 +18,12 @@ function App() {
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [atStart, setAtStart] = useState(false);
+  const [score, setScore] = useState(0);
+  const [gameFinished, setGameFinished] = useState(false);
+  const [finalStats, setFinalStats] = useState(null);
+  const [debugPoiIndex, setDebugPoiIndex] = useState(0);
+  const [poiDict, setPoiDict] = useState({});
+  const [debugCurrentPoi, setDebugCurrentPoi] = useState(null);
 
   const {
     msg,
@@ -29,6 +36,11 @@ function App() {
     wsRef,
   } = useGeoStream();
 
+  const currentPoiName =
+    poiDict[debugCurrentPoi ?? lastMessage?.current_poi] ??
+    debugCurrentPoi ??
+    lastMessage?.current_poi;
+
   const handleStart = () => {
     setStarted(true);
   };
@@ -38,21 +50,18 @@ function App() {
     setShowPopup(false);
     setDebugArrived(false);
     setCurrentQuiz(null);
+    setDebugCurrentPoi(null);
     if (wsRef.current) {
       wsRef.current.send(JSON.stringify({ type: "confirm" }));
     }
   };
 
-  const debugQuiz = {
-    pergunta: "Qual é o nome deste ponto de interesse?",
-    opcao_certa: "A",
-    opcoes: {
-      A: "Resposta A",
-      B: "Resposta B",
-      C: "Resposta C",
-      D: "Resposta D",
-    },
-  };
+  useEffect(() => {
+    fetch("/api/v1/constants")
+      .then((r) => r.json())
+      .then((data) => setPoiDict(data.poi_dict))
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (started && wsConnected) {
@@ -73,6 +82,23 @@ function App() {
         setCurrentQuiz(lastMessage.quiz);
       }
     }
+    if (lastMessage?.score !== undefined) {
+      setScore(lastMessage.score);
+    }
+    if (lastMessage?.type === "route_finished") {
+      const stats = {
+        score: lastMessage.score,
+        pois_count: lastMessage.pois_count,
+        duration_s: lastMessage.duration_s,
+      };
+      setFinalStats(stats);
+      setGameFinished(true);
+      fetch("/api/v1/session/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player_alias: alias, ...stats }),
+      }).catch(console.error);
+    }
   }, [lastMessage]);
 
   if (!started) {
@@ -83,24 +109,43 @@ function App() {
     );
   }
 
+  if (gameFinished && finalStats) {
+    return (
+      <div className="app">
+        <GameComplete
+          alias={alias}
+          score={finalStats.score}
+          poisCount={finalStats.pois_count}
+          durationS={finalStats.duration_s}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <div className="screen nav-screen" id="screen-map">
         <div className="hud-bar">
+          <div className="hud-chip">
+            <div className="hud-score-num">{score}</div>
+            <div className="hud-lbl">pontos</div>
+          </div>
           <div className="gps-chip">
             <div className={`gps-dot ${wsConnected ? "" : "weak"}`}></div>
             <span>{wsConnected ? "ONLINE" : "OFFLINE"}</span>
           </div>
         </div>
         <main className="nav-main">
-          <StatusCard lastMessage={lastMessage} />
+          <div className="status-message-only">
+            {lastMessage?.message ?? msg}
+          </div>
           <Compass
             target={target}
             arrowRef={arrowRef}
             zone={lastMessage?.zone}
           />
-          <div className={`zone-indicator zone-${lastMessage?.zone ?? "fora"}`}>
-            {lastMessage?.zone ?? "fora"}
+          <div className={`zone-indicator zone-${lastMessage?.zone}`}>
+            {lastMessage?.zone_message}
           </div>{" "}
           <div className="distance-card">
             <div className="dist-val">
@@ -118,32 +163,31 @@ function App() {
               Começar exploração!
             </button>
           )}
-          <div className="debug-panel">
-            <button onClick={() => setDebugArrived(true)}>
-              Testar chegada
-            </button>
-            <button
-              onClick={() => {
-                if (wsRef.current) {
-                  wsRef.current.send(JSON.stringify({ type: "confirm" }));
-                }
-              }}
-            >
-              Próximo POI
-            </button>
-          </div>
+          <DebugPanel
+            setShowPopup={setShowPopup}
+            setShowQuiz={setShowQuiz}
+            wsRef={wsRef}
+            score={score}
+            setFinalStats={setFinalStats}
+            setGameFinished={setGameFinished}
+            setCurrentQuiz={setCurrentQuiz}
+            setDebugCurrentPoi={setDebugCurrentPoi}
+            debugPoiIndex={debugPoiIndex}
+            setDebugPoiIndex={setDebugPoiIndex}
+            poiDict={poiDict}
+          />
         </main>
 
         <ArrivedScreen
           showPopup={(showPopup || debugArrived) && !showQuiz}
-          currentPoi={lastMessage?.current_poi}
+          currentPoi={currentPoiName}
           onStartQuiz={() => setShowQuiz(true)}
         />
 
-        {showQuiz && (
+        {showQuiz && currentQuiz && (
           <QuizScreen
-            quiz={currentQuiz ?? debugQuiz}
-            currentPoi={lastMessage?.current_poi}
+            quiz={currentQuiz}
+            currentPoi={currentPoiName}
             onContinue={handleContinueAfterQuiz}
             wsRef={wsRef}
           />

@@ -1,4 +1,5 @@
 from db import get_connection
+from psycopg2.extras import RealDictCursor
 
 
 def check_start(lat, lon):
@@ -166,7 +167,7 @@ def get_poi_target(poi_name, lat, lon):
 
 def get_quiz_for_poi(poi_name):
     conn = get_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
     query = """
     SELECT
@@ -175,7 +176,7 @@ def get_quiz_for_poi(poi_name):
         opcao_b,
         opcao_c,
         opcao_d,
-        opcao_certa
+        resposta_certa
     FROM quiz
     WHERE poi = %s
     ORDER BY random()
