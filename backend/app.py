@@ -39,6 +39,8 @@ class SessionState:
     waiting_start: bool = True
     start_confirmed: bool = False
     session_started_at: float = field(default_factory=time.time)
+    visited_pois: set = field(default_factory=set)
+    last_confirm_poi: str | None = None
 
 
 @app.websocket("/ws")
@@ -62,8 +64,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             if data.get("type") == "confirm":
-                if state.waiting_confirmation:
-                    state.current_poi_index += 1
+                print(f"[CONFIRM] poi_index antes: {state.current_poi_index}, waiting_confirmation: {state.waiting_confirmation}")
+                if not state.waiting_confirmation:
+                    print(f"[CONFIRM] ignorado — não estava em waiting_confirmation")
+                    continue
+                state.last_confirm_poi = ROUTE[state.current_poi_index] if state.current_poi_index < len(ROUTE) else None
+                state.current_poi_index += 1
+                print(f"[CONFIRM] poi_index depois: {state.current_poi_index}")
                 state.last_zone = ""
                 state.waiting_confirmation = False
                 state.current_default_msg = None
@@ -142,6 +149,7 @@ async def websocket_endpoint(websocket: WebSocket):
             zone_message = None
 
             if state.waiting_confirmation:
+                print(f"[WAITING_CONF] a enviar arrived=True para poi: {current_poi}, quiz: {state.current_quiz is not None}")
                 await websocket.send_json({
                     "arrived": True,
                     "current_poi": current_poi,
@@ -160,19 +168,20 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 continue
 
-            if zone == "val":
+            if zone == "val" and current_poi not in state.visited_pois:
+                print(f"[VAL DETECTADO] poi: {current_poi}, visited: {state.visited_pois}")
                 seconds_elapsed = time.time() - state.poi_started_at
                 time_bonus = calculate_time_bonus(seconds_elapsed)
                 state.score += time_bonus
                 state.current_quiz = get_quiz_for_poi(current_poi)
                 state.waiting_confirmation = True
+                state.visited_pois.add(current_poi)
                 state.last_zone = zone
                 zone_message = get_zone_message(
                     "val",
                     current_poi,
                     time_bonus=time_bonus,
                 )
-
             elif zone != state.last_zone:
                 zone_message = get_zone_message(zone, current_poi)
                 state.last_zone = zone

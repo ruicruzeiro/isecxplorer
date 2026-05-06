@@ -1,13 +1,23 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 function QuizScreen({ quiz, currentPoi, onContinue, wsRef }) {
   const [selected, setSelected] = useState(null);
+  const [continuing, setContinuing] = useState(false);
 
   if (!quiz) return null;
 
   const isAnswered = selected !== null;
   const isCorrect = selected === quiz.resposta_certa;
-  const shuffled = Object.entries(quiz.opcoes).sort(() => Math.random() - 0.5);
+  const shuffled = useMemo(
+    () => Object.entries(quiz.opcoes).sort(() => Math.random() - 0.5),
+    [quiz],
+  );
+
+  const handleContinue = () => {
+    if (continuing) return;
+    setContinuing(true);
+    onContinue();
+  };
 
   return (
     <div className="arrived-screen">
@@ -18,7 +28,7 @@ function QuizScreen({ quiz, currentPoi, onContinue, wsRef }) {
 
         <p className="arrived-text">{quiz.pergunta}</p>
 
-        {Object.entries(quiz.opcoes).map(([key, value]) => (
+        {shuffled.map(([key, value]) => (
           <button
             key={key}
             className="quiz-answer-btn"

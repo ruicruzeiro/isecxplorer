@@ -68,7 +68,7 @@ def check_target_poi(lat, lon, poi_name):
             ST_DWithin(
                 ST_Transform(p.geom, 4326)::geography,
                 ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
-                4
+                7
             )
         ) AS inside,
         ST_Distance(

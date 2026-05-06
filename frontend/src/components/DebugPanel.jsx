@@ -47,6 +47,7 @@ export function DebugPanel({
             if (!quiz.error) setCurrentQuiz(quiz);
           } catch {}
           setDebugCurrentPoi(currentPoi);
+          confirmSentRef.current = false;
           setShowPopup(true);
           setDebugPoiIndex((i) => (i + 1) % ROUTE.length);
         }}

@@ -18,6 +18,7 @@ export function useCompassBearing({
   const TIME_CONSTANT_MS = 100;
   const SNAP_THRESHOLD_DEG = 0.5;
 
+  // useCompassBearing.js
   useEffect(() => {
     if (!target || !lastGeo) return;
 
@@ -35,7 +36,16 @@ export function useCompassBearing({
       lastGeo.speed !== null &&
       lastGeo.speed > 0.8;
 
-    const effectiveHeading = hasGpsHeading ? lastGeo.heading : deviceHeading;
+    let effectiveHeading;
+
+    if (hasGpsHeading) {
+      // Funde IMU (90%) com GPS (10%) — IMU dá suavidade, GPS corrige deriva
+      const delta = shortestAngle(deviceHeading, lastGeo.heading);
+      effectiveHeading = (deviceHeading + delta * 0.1 + 360) % 360;
+    } else {
+      effectiveHeading = deviceHeading;
+    }
+
     targetAngleRef.current = bearing - effectiveHeading;
   }, [target, lastGeo, deviceHeading]);
 

@@ -10,7 +10,7 @@ def get_default_message(state):
 
 def get_zone_message(zone, current_poi, time_bonus=None):
     if zone == "frio":
-        return "Frio..."
+        return "Morno..."
     if zone == "quente":
         return "Quente!"
     if zone == "val":

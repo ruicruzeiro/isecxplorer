@@ -2597,6 +2597,9 @@ body,
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--sage);
+  text-align: center;
+  width: 100%;
+  padding: 0 1rem;
 }
 
 .zone-indicator {

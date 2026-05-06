@@ -26,7 +26,7 @@ export function useGeoStream() {
   const latestGeoRef = useRef(null);
   const sendTimerRef = useRef(null);
   const smoothedHeadingRef = useRef(null);
-  const SMOOTHING = 0.7;
+  const SMOOTHING = 0.15;
 
   const pedirPermissaoIMU = async () => {
     if (
@@ -90,7 +90,6 @@ export function useGeoStream() {
     const permitida = await pedirPermissaoIMU();
     if (!permitida) throw new Error("Permissão de IMU negada.");
 
-    // ← motionHandler restaurado
     const motionHandler = (event) => {
       latestImuRef.current = {
         acceleration: event.acceleration
@@ -119,7 +118,6 @@ export function useGeoStream() {
     };
 
     const applyHeading = (rawHeading) => {
-      // smoothing circular — evita tremido e saltos em 0/360
       if (smoothedHeadingRef.current === null) {
         smoothedHeadingRef.current = rawHeading;
       } else {
@@ -130,25 +128,41 @@ export function useGeoStream() {
       setDeviceHeading(smoothedHeadingRef.current);
     };
 
-    const orientationHandler = (event) => {
+    let usingAbsolute = false;
+
+    const absoluteHandler = (event) => {
+      if (event.alpha === null) return;
+      usingAbsolute = true;
+      const screenAngle = getScreenAngle();
+      applyHeading((360 - event.alpha + screenAngle) % 360);
+    };
+
+    const relativeHandler = (event) => {
+      // iOS — usa webkitCompassHeading directamente
       if (event.webkitCompassHeading !== undefined) {
-        // iOS — fiável, referencial Norte magnético direto
         applyHeading(event.webkitCompassHeading);
-      } else if (event.absolute && event.alpha !== null) {
-        // Android com absolute — compensar orientação do ecrã
+        return;
+      }
+      // Android fallback — só usa se não há absolute a funcionar
+      if (!usingAbsolute && event.alpha !== null) {
         const screenAngle = getScreenAngle();
         applyHeading((360 - event.alpha + screenAngle) % 360);
       }
-      // se não for absolute e não tiver webkitCompassHeading, ignorar
     };
 
-    // absoluteHandler marca o evento como absolute=true antes de o passar
-    const absoluteHandler = (event) =>
-      orientationHandler(Object.assign({}, event, { absolute: true }));
-
     window.addEventListener("deviceorientationabsolute", absoluteHandler, true);
-    window.addEventListener("deviceorientation", orientationHandler, true);
+    window.addEventListener("deviceorientation", relativeHandler, true);
     window.addEventListener("devicemotion", motionHandler);
+
+    // Verifica após 1s se o absolute está a funcionar no Android
+    // Se não, força o uso do relative
+    setTimeout(() => {
+      if (!usingAbsolute) {
+        console.log(
+          "[IMU] deviceorientationabsolute não disponível, a usar relative",
+        );
+      }
+    }, 1000);
 
     imuCleanupRef.current = () => {
       window.removeEventListener(
@@ -156,7 +170,7 @@ export function useGeoStream() {
         absoluteHandler,
         true,
       );
-      window.removeEventListener("deviceorientation", orientationHandler, true);
+      window.removeEventListener("deviceorientation", relativeHandler, true);
       window.removeEventListener("devicemotion", motionHandler);
     };
   };
