@@ -1,6 +1,6 @@
-import os
 import json
 import time
+import uuid
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -33,6 +33,7 @@ class SessionState:
     waiting_confirmation: bool = False
     score: int = 0
     poi_started_at: float = field(default_factory=time.time)
+    poi_session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     current_quiz: dict | None = None
     current_quiz_answer: str | None = None
     quiz_answered: bool = False
@@ -41,6 +42,7 @@ class SessionState:
     session_started_at: float = field(default_factory=time.time)
     visited_pois: set = field(default_factory=set)
     last_confirm_poi: str | None = None
+    arrival_armed: bool = True
 
 
 @app.websocket("/ws")
@@ -70,6 +72,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 state.last_confirm_poi = ROUTE[state.current_poi_index] if state.current_poi_index < len(ROUTE) else None
                 state.current_poi_index += 1
+                state.arrival_armed = False
+                state.poi_session_id = str(uuid.uuid4())
                 print(f"[CONFIRM] poi_index depois: {state.current_poi_index}")
                 state.last_zone = ""
                 state.waiting_confirmation = False
@@ -152,6 +156,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 print(f"[WAITING_CONF] a enviar arrived=True para poi: {current_poi}, quiz: {state.current_quiz is not None}")
                 await websocket.send_json({
                     "arrived": True,
+                    "poi_session_id": state.poi_session_id,
                     "current_poi": current_poi,
                     "target": target["name"] if target else None,
                     "target_distance": target["distance_m"] if target else None,
@@ -168,7 +173,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 continue
 
-            if zone == "val" and current_poi not in state.visited_pois:
+            if not state.arrival_armed and zone != "val":
+                state.arrival_armed = True
+
+            if zone == "val" and state.arrival_armed and current_poi not in state.visited_pois:
                 print(f"[VAL DETECTADO] poi: {current_poi}, visited: {state.visited_pois}")
                 seconds_elapsed = time.time() - state.poi_started_at
                 time_bonus = calculate_time_bonus(seconds_elapsed)
@@ -188,6 +196,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             await websocket.send_json({
                 "arrived": state.waiting_confirmation,
+                "poi_session_id": state.poi_session_id,
                 "current_poi": current_poi,
                 "target": target["name"] if target else None,
                 "target_distance": target["distance_m"] if target else None,

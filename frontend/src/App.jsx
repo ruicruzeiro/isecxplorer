@@ -8,27 +8,24 @@ import QuizScreen from "./components/QuizScreen";
 import GameComplete from "./components/GameComplete";
 import { useGeoStream } from "./hooks/useGeoStream";
 import { useCompassBearing } from "./hooks/useCompassBearing";
-import { DebugPanel } from "./components/DebugPanel";
 
 function App() {
   const [alias, setAlias] = useState("");
   const [started, setStarted] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
-  const [debugArrived, setDebugArrived] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [atStart, setAtStart] = useState(false);
   const [score, setScore] = useState(0);
   const [gameFinished, setGameFinished] = useState(false);
   const [finalStats, setFinalStats] = useState(null);
-  const [debugPoiIndex, setDebugPoiIndex] = useState(0);
   const [poiDict, setPoiDict] = useState({});
-  const [debugCurrentPoi, setDebugCurrentPoi] = useState(null);
   const [zoneMessage, setZoneMessage] = useState(null);
   const showPopupRef = useRef(false);
   const showQuizRef = useRef(false);
   const gameFinishedRef = useRef(false);
   const confirmSentRef = useRef(false);
+  const lastArrivedSessionId = useRef(null);
 
   const {
     msg,
@@ -42,9 +39,7 @@ function App() {
   } = useGeoStream();
 
   const currentPoiName =
-    poiDict[debugCurrentPoi ?? lastMessage?.current_poi] ??
-    debugCurrentPoi ??
-    lastMessage?.current_poi;
+    poiDict[lastMessage?.current_poi] ?? lastMessage?.current_poi;
 
   const handleStart = () => {
     setStarted(true);
@@ -54,18 +49,25 @@ function App() {
     console.log(
       "[handleContinueAfterQuiz] chamado, confirmSentRef:",
       confirmSentRef.current,
+      "timestamp:",
+      Date.now(),
+      "ref object:",
+      confirmSentRef,
     );
-    if (confirmSentRef.current) return;
+    if (confirmSentRef.current) {
+      console.log("[handleContinueAfterQuiz] BLOQUEADO");
+      return;
+    }
     confirmSentRef.current = true;
+    wsRef.current?.send(JSON.stringify({ type: "confirm" }));
+    console.log(
+      "[handleContinueAfterQuiz] ref definida para true:",
+      confirmSentRef.current,
+    );
     setShowQuiz(false);
     setShowPopup(false);
-    setDebugArrived(false);
     setCurrentQuiz(null);
-    setDebugCurrentPoi(null);
     setZoneMessage(null);
-    if (wsRef.current) {
-      wsRef.current.send(JSON.stringify({ type: "confirm" }));
-    }
   };
 
   useEffect(() => {
@@ -105,9 +107,12 @@ function App() {
       !showQuizRef.current &&
       !gameFinishedRef.current
     ) {
-      confirmSentRef.current = false;
-      setShowPopup(true);
-      if (lastMessage.quiz) setCurrentQuiz(lastMessage.quiz);
+      if (lastMessage.poi_session_id !== lastArrivedSessionId.current) {
+        lastArrivedSessionId.current = lastMessage.poi_session_id;
+        confirmSentRef.current = false;
+        setShowPopup(true);
+        if (lastMessage.quiz) setCurrentQuiz(lastMessage.quiz);
+      }
     }
 
     if (!showPopupRef.current && !showQuizRef.current) {
@@ -200,25 +205,10 @@ function App() {
               Começar exploração!
             </button>
           )}
-          {/* Descomentar este bloco para aparecerem os botões de debug */}
-          {/* <DebugPanel
-            setShowPopup={setShowPopup}
-            setShowQuiz={setShowQuiz}
-            wsRef={wsRef}
-            score={score}
-            setFinalStats={setFinalStats}
-            setGameFinished={setGameFinished}
-            setCurrentQuiz={setCurrentQuiz}
-            setDebugCurrentPoi={setDebugCurrentPoi}
-            debugPoiIndex={debugPoiIndex}
-            setDebugPoiIndex={setDebugPoiIndex}
-            poiDict={poiDict}
-            confirmSentRef={confirmSentRef}
-          /> */}
         </main>
 
         <ArrivedScreen
-          showPopup={(showPopup || debugArrived) && !showQuiz}
+          showPopup={showPopup && !showQuiz}
           currentPoi={currentPoiName}
           onStartQuiz={() => setShowQuiz(true)}
         />
