@@ -8,6 +8,7 @@ import QuizScreen from "./components/QuizScreen";
 import GameComplete from "./components/GameComplete";
 import { useGeoStream } from "./hooks/useGeoStream";
 import { useCompassBearing } from "./hooks/useCompassBearing";
+import Leaderboard from "./components/LeaderBoard";
 
 function App() {
   const [alias, setAlias] = useState("");
@@ -26,6 +27,7 @@ function App() {
   const gameFinishedRef = useRef(false);
   const confirmSentRef = useRef(false);
   const lastArrivedSessionId = useRef(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const {
     msg,
@@ -143,10 +145,23 @@ function App() {
     }
   }, [lastMessage]);
 
+  if (showLeaderboard) {
+    return (
+      <div className="app">
+        <Leaderboard alias={alias} onBack={() => setShowLeaderboard(false)} />
+      </div>
+    );
+  }
+
   if (!started) {
     return (
       <div className="app">
-        <Onboarding alias={alias} setAlias={setAlias} onStart={handleStart} />
+        <Onboarding
+          alias={alias}
+          setAlias={setAlias}
+          onStart={handleStart}
+          onShowLeaderboard={() => setShowLeaderboard(true)}
+        />
       </div>
     );
   }
@@ -159,6 +174,7 @@ function App() {
           score={finalStats.score}
           poisCount={finalStats.pois_count}
           durationS={finalStats.duration_s}
+          onShowLeaderboard={() => setShowLeaderboard(true)}
         />
       </div>
     );

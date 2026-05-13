@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function Onboarding({ alias, setAlias, onStart }) {
+function Onboarding({ alias, setAlias, onStart, onShowLeaderboard }) {
   const [showConsent, setShowConsent] = useState(false);
 
   return (
@@ -71,6 +71,10 @@ function Onboarding({ alias, setAlias, onStart }) {
           onClick={() => setShowConsent(true)}
         >
           INICIAR SESSÃO
+        </button>
+
+        <button className="cta-btn" onClick={onShowLeaderboard}>
+          Ver ranking
         </button>
       </div>
 

@@ -2781,3 +2781,23 @@ body,
   text-align: center;
   padding: 20px;
 }
+
+.leaderboard-screen {
+  min-height: 100dvh;
+  background: var(--void);
+  color: var(--fog);
+}
+
+.lb-header .back-btn {
+  border: 1px solid var(--border);
+}
+
+.row-time {
+  color: var(--acid);
+}
+
+.pod-avatar span,
+.row-avatar span {
+  font-family: var(--f-display);
+  color: var(--fog);
+}
